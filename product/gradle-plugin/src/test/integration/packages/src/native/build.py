@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# This file requires Python 3.6 or later.
 
 import argparse
 import os

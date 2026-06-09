@@ -23,7 +23,11 @@ cdef extern from "chaquopy_extra.h":
 # Imports used in this file
 from threading import Thread
 
-# Imports used in multiple .pxi files
+cdef extern from "Python.h":
+    void PyEval_InitThreads()
+
+
+# Imports used in multiple files
 from collections import OrderedDict
 import os
 import sys
@@ -47,6 +51,9 @@ __all__ = [
     "set_import_enabled",                                                  # import.pxi
 ]
 
+
+# Multi-threading is always enabled in Java.
+PyEval_InitThreads()
 
 # Monkey-patching this internal method isn't ideal, but we want to detach as late as possible
 # in order to avoid accidental reattachment, even if the thread is terminated by a Java

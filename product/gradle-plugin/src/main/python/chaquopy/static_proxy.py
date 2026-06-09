@@ -165,7 +165,8 @@ class Module(object):
         # to its fully-qualified name if it's a usable import, or otherwise to the node which
         # bound it so we can give a useful error if the name is passed to one of our functions.
         for node in root.body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if isinstance(node, (ast.FunctionDef if sys.version_info < (3, 5)
+                                 else (ast.FunctionDef, ast.AsyncFunctionDef))):
                 self.bindings[node.name] = node
             elif isinstance(node, ast.ClassDef):
                 c = self.process_class(node)
@@ -178,7 +179,8 @@ class Module(object):
             elif isinstance(node, ast.Assign):
                 for t in node.targets:
                     self.process_assign(t)
-            elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+            elif isinstance(node, (ast.AugAssign if sys.version_info < (3, 6)
+                                   else (ast.AugAssign, ast.AnnAssign))):
                 self.process_assign(node.target)
             elif isinstance(node, ast.Import):
                 self.process_import(node.names, lambda name: name)
@@ -272,10 +274,16 @@ class Module(object):
         return result
 
     def has_starargs(self, call):
-        return any(isinstance(a, ast.Starred) for a in call.args)
+        if sys.version_info < (3, 5):
+            return bool(call.starargs)
+        else:
+            return any(isinstance(a, ast.Starred) for a in call.args)
 
     def has_kwargs(self, call):
-        return any(kw.arg is None for kw in call.keywords)
+        if sys.version_info < (3, 5):
+            return bool(call.kwargs)
+        else:
+            return any(kw.arg is None for kw in call.keywords)
 
     def evaluate(self, expr):
         if isinstance(expr, ast.Constant):

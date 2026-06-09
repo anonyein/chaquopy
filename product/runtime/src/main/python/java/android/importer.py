@@ -26,11 +26,6 @@ from java._vendor.elftools.elf.elffile import ELFFile
 from com.chaquo.python.android import AndroidPlatform
 from com.chaquo.python.internal import Common
 
-if sys.version_info < (3, 11):
-    from importlib.abc import Traversable
-else:
-    from importlib.resources.abc import Traversable
-
 
 import_triggers = {}
 
@@ -92,9 +87,23 @@ def initialize_importlib(context, build_json, app_path):
     for finder in reversed(finders):
         site.addsitedir(finder.extract_root)
 
+    if sys.version_info[:2] == (3, 9):
+        from importlib import _common
+        global fallback_resources_original
+        fallback_resources_original = _common.fallback_resources
+        _common.fallback_resources = fallback_resources_39
+
     global spec_from_file_location_original
     spec_from_file_location_original = util.spec_from_file_location
     util.spec_from_file_location = spec_from_file_location_override
+
+
+# Python 3.9 only supports importlib.resources.files for the standard importers.
+def fallback_resources_39(spec):
+    if isinstance(spec.loader, AssetLoader):
+        return spec.loader.get_resource_reader(spec.name).files()
+    else:
+        return fallback_resources_original(spec)
 
 
 def spec_from_file_location_override(name, location=None, *args, loader=None, **kwargs):
@@ -351,8 +360,10 @@ class ChaquopyPathFinder(machinery.PathFinder):
 
 # This does not inherit from PosixPath, because that would cause
 # importlib.resources.as_file to return it unchanged, rather than creating a temporary
-# file as it should.
-class AssetPath(Traversable):
+# file as it should. However, once our minimum version is Python 3.9, we can inherit
+# from importlib.resources.abc.Traversable, and remove our implementations of read_text,
+# read_bytes, and __truediv__.
+class AssetPath:
     def __init__(self, path):
         root_dir = path
         while dirname(root_dir) != ASSET_PREFIX:
@@ -397,6 +408,9 @@ class AssetPath(Traversable):
         else:
             return type(self)(child_path)
 
+    def __truediv__(self, child):
+        return self.joinpath(child)
+
     # `buffering` has no effect because the whole file is read immediately.
     def open(self, mode="r", buffering=-1, encoding=None, errors=None, newline=None):
         if "r" in mode:
@@ -407,8 +421,10 @@ class AssetPath(Traversable):
                 return bio
         raise ValueError(f"unsupported mode: {mode!r}")
 
-    # Traversable.read_text doesn't accept `errors`, which breaks the old importlib API
-    # (https://github.com/python/cpython/issues/127012).
+    def read_bytes(self):
+        with self.open('rb') as strm:
+            return strm.read()
+
     def read_text(self, encoding=None, errors=None, newline=None):
         with self.open("r", -1, encoding, errors, newline) as strm:
             return strm.read()
