@@ -45,15 +45,13 @@ jobs:
           export JAVA_HOME=$JAVA_HOME_11_X64
           ./gradlew publish -P cmakeBuildType=Release
 
-      # ========= 重点修改：只上传 jar / aar 文件 =========
-      - name: Upload JAR and AAR artifacts
-        uses: actions/upload-artifact@v4.3.3
+      - uses: actions/upload-artifact@v4.3.3
         with:
           name: library-files
           path: |
             maven/**/*.aar
             maven/**/*.jar
-            # 排除源码和文档 jar，只看实际库文件（可按需调整）
+            maven/**/*.so          # ← 添加这一行
             !**/*-sources.jar
             !**/*-javadoc.jar
           if-no-files-found: error
