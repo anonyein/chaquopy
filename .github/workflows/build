@@ -1,0 +1,59 @@
+name: CI
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  product:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: smorimoto/tune-github-hosted-runner-network@v1.0.0
+      - uses: actions/checkout@v4.1.6
+
+      - uses: ./.github/actions/setup-python
+        id: setup-python
+
+      # 下载 Android Python 构建依赖（如果打包 jar/aar 必需就保留）
+      - name: Download Android Python builds
+        run: |
+          cd target
+          for version in $(./list-versions.py --build); do
+              target_dir=../maven/com/chaquo/python/target/$version
+              ./download-target.sh $target_dir
+              ./unpackage-target.sh $target_dir prefix
+          done
+
+      - name: Install Python requirements
+        run: |
+          ${{ steps.setup-python.outputs.python-default }} -m \
+              pip install -r product/runtime/requirements-build.txt
+
+      - uses: ./.github/actions/create-local-properties
+
+      # 执行构建（生成 jar/aar）
+      - name: Build
+        run: |
+          cd product
+          export JAVA_HOME=$JAVA_HOME_11_X64
+          ./gradlew publish -P cmakeBuildType=Release
+
+      # ========= 重点修改：只上传 jar / aar 文件 =========
+      - name: Upload JAR and AAR artifacts
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: library-files
+          path: |
+            maven/**/*.aar
+            maven/**/*.jar
+            # 排除源码和文档 jar，只看实际库文件（可按需调整）
+            !**/*-sources.jar
+            !**/*-javadoc.jar
+          if-no-files-found: error
