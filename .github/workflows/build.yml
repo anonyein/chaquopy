@@ -47,11 +47,9 @@ jobs:
 
       - uses: actions/upload-artifact@v4.3.3
         with:
-          name: library-files
+          name: maven-repo
           path: |
-            maven/**/*.aar
-            maven/**/*.jar
-            maven/**/*.so          # ← 添加这一行
+            maven/
             !**/*-sources.jar
             !**/*-javadoc.jar
           if-no-files-found: error
